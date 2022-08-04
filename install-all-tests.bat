@@ -2,6 +2,10 @@
 
 setlocal enabledelayedexpansion
 
+if "%1" == "" GOTO :printHelp
+if "%1" == "-h" GOTO :printHelp
+if "%1" == "-help" GOTO :printHelp
+
 set pwdd=%CD%
 set logfile=log.txt
 
@@ -26,14 +30,16 @@ set TE=%2
 	
 	if NOT DEFINED TE (
 		echo.
-		echo [FAIL] Require a directory where TEAM Engine has been deployed as a war file, as the second argument.
+		echo [FAIL] Require a directory where the TEAM Engine webapp or console app has been installed, as the second argument.
 		echo.
 		call :printHelp
 		GOTO END
+	) else if "!TE!"=="skip" (
+	    echo [INFO] TEAM Engine webapp or console app directory skipped.  Components required for test scripts will not be installed.
 	) else if NOT EXIST "!TE!" (
 		echo.
 		echo [FAIL] Argument 2 '!TE!' is not a directory.
-		echo        A directory where TEAM Engine has been deployed as a war file, is required.
+		echo        A directory where TEAM Engine the TEAM Engine webapp or console app has been installed is required.
 		echo.
 		call :printHelp
 		GOTO END	
@@ -93,7 +99,7 @@ echo [INFO] The provided TE_BASE directory, TEAMEngine directory and CSV file ap
 
 :: continue is everything is fine	
 
-echo '[INFO] Removing all tests from TE_BASE'
+echo [INFO] Removing all tests from TE_BASE
 
 			if EXIST "!TE_BASE!\scripts\" (	
 				pushd !TE_BASE!\scripts\
@@ -116,13 +122,13 @@ echo '[INFO] Removing all tests from TE_BASE'
 		if NOT "!url!" == "Repository"  SET res=true
 		if "!res!" == "true" (
 			
-			echo '[INFO] Found ' !url! !tag!
+			echo [INFO] Found !url! !tag!
 			cd !pwdd!
 			
 			if DEFINED url (
 			
-				echo '[INFO] Processing ' !url! !tag!
-				echo "TEMP: " !TEMP_DIR!
+				echo [INFO] Processing !url! !tag!
+				echo [INFO] TEMP_DIR: !TEMP_DIR!
 				
 				REM Delete all the data from the temp directory.
 				if EXIST "!TEMP_DIR!" (	
@@ -139,14 +145,14 @@ echo '[INFO] Removing all tests from TE_BASE'
 				If !errorlevel! NEQ 0 (
 					SET "err=[ERROR] - Repository doesn't exist: !url!"
 					echo !err! >>!logfile!
-					echo "!err!"	
+					echo !err!
 					GOTO END
 				)
 				
 				REM Get the test name
 				FOR /f "tokens=1*delims=\/" %%i IN ("!url!") DO SET basename=%%~nxj
 				SET "ets_name=!basename:.="!^&REM #
-				echo "[URL]:  " !ets_name!
+				echo [URL]: !ets_name!
 				
 				cd !ets_name!
 				REM get all the tag list into array.
@@ -162,7 +168,7 @@ echo '[INFO] Removing all tests from TE_BASE'
 				
 					If  "!tag_status!"=="true" (
 							
-							echo "[INFO] !tag! of !ets_name! exists. Checking it out."
+							echo [INFO] !tag! of !ets_name! exists. Checking it out.
 							
 							REM Checkout the test to specified tag.
 							call git checkout !tag! 2>NUL
@@ -174,37 +180,44 @@ echo '[INFO] Removing all tests from TE_BASE'
 							>nul find "FAIL" log_build_test.txt && ( 
 							SET "fail_message=!fail_message!!NL! !ets_name! !tag!"
 		         			set /A failures+=1
-							echo "After Check...."
+							REM echo After Check....
 							)
 									
 					) else (
 						
-							echo "[ERROR] TAG NOT FOUND tag:'!tag! 'it was not build"
-							echo "[ERROR] TAG NOT FOUND tag:'!tag! 'it was not build" >>!logfile!
+							echo [ERROR] TAG NOT FOUND tag:'!tag! 'it was not built
+							echo [ERROR] TAG NOT FOUND tag:'!tag! 'it was not built >>!logfile!
 					)
 			)
 		)
 	)
+
+
+	SET app_dir=!TE!
+	IF EXIST !TE!\WEB_INF\lib SET app_dir=!TE!\WEB_INF
+	FOR %%a IN (!app_dir!\lib\teamengine-core*.jar) DO SET core_jar=%%a
+	"!JAVA_HOME!\bin\java" -cp !app_dir!\classes;!core_jar!;!app_dir!\lib\commons-io-2.7.jar com.occamlab.te.config.ConfigFileCreator
+
 	
 	If !failures! GTR 0 (
-		echo "Total failures: "!failures!
+		echo Total failures: !failures!
 		echo !fail_message!
 		echo.
 	)
 	
 	
-echo "------------- End -----------"
+echo ------------- End -----------
 GOTO END
 :printHelp
 
   echo.
-  echo Usage install-all-tests.sh TE_BASE TEAM_ENGINE CSV_FILE DIR_TO_BUILD  SKIP_TESTS
+  echo Usage install-all-tests.sh TE_BASE TEAM_ENGINE CSV_FILE DIR_TO_BUILD SKIP_TESTS
   echo.
   echo where:
   echo.
-  echo   TE_BASE        		is the  TE_BASE directory
-  echo   TEAM_ENGINE    		is the  TEAM_ENGINE directory
-  echo   CSV_FILE       		is a CSV  file that provides per test a git url and revision number 
+  echo   TE_BASE        		is the TE_BASE directory
+  echo   TEAM_ENGINE    		is the TEAM_ENGINE webapp or console app directory
+  echo   CSV_FILE       		is a CSV file that provides per test a git url and revision number 
   echo   DIR_TO_BUILD   		temporary directory to build tests
   echo   SKIP_TESTS  			true or false to skip tests while building mvn
   echo.
